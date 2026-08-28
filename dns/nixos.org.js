@@ -121,6 +121,7 @@ D("nixos.org",
 	// services infra
 	A("caliban", "65.109.26.213"),
 	AAAA("caliban", "2a01:4f9:5a:186c::2"),
+	CNAME("cache-serve", "caliban"),
 	CNAME("chat", "caliban"),
 	CNAME("docuseal", "caliban"),
 	CNAME("live", "caliban"),

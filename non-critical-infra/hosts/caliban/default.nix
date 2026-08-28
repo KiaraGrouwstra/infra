@@ -20,6 +20,7 @@
     ../../modules/owncast.nix
     ../../modules/vaultwarden.nix
     ../../modules/docuseal.nix
+    ../../modules/nix-cache-serve.nix
     ./nixpkgs-swh.nix
   ];
 

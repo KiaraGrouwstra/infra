@@ -588,6 +588,26 @@
         "type": "github"
       }
     },
+    "nix-cache-serve": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1787955093,
+        "narHash": "sha256-2/+lTIAb+z/UJ97f4B1G0qvo46uzQ29MFUw11SvHPEg=",
+        "owner": "KiaraGrouwstra",
+        "repo": "nix-cache-serve",
+        "rev": "1d78a726c1d511eccbf322349acc0373fd7c56f0",
+        "type": "github"
+      },
+      "original": {
+        "owner": "KiaraGrouwstra",
+        "repo": "nix-cache-serve",
+        "type": "github"
+      }
+    },
     "nix-eval-jobs": {
       "flake": false,
       "locked": {
@@ -908,6 +928,7 @@
         "geolite2-asn-mmdb": "geolite2-asn-mmdb",
         "hydra": "hydra",
         "hydra-staging": "hydra-staging",
+        "nix-cache-serve": "nix-cache-serve",
         "nix-fast-build": "nix-fast-build",
         "nix-index": "nix-index",
         "nixocaine": "nixocaine",
