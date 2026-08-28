@@ -1,5 +1,10 @@
 locals {
   cache_domain = "cache.nixos.org"
+
+  # Origin for the per-file `/serve/` endpoint. It is an ordinary HTTPS origin
+  # running `nix-cache-serve`, which reads this same cache over its public
+  # interface; it holds no credentials and has no write path.
+  cache_serve_origin = "cache-serve.nixos.org"
 }
 
 resource "aws_s3_bucket" "cache" {
@@ -188,6 +193,31 @@ resource "fastly_service_vcl" "cache" {
     weight                = 100
   }
 
+  # Per-file reads. This backend only ever sees `/serve/`; every other path
+  # continues to go to S3 with byte-identical behaviour.
+  #
+  # `first_byte_timeout` is generous because the origin has to decompress the
+  # archive up to the wanted file before it can emit anything. Measured over 24
+  # store paths that is a median of 0.36s but a tail of 6.5s on a 700 MB NAR,
+  # so the 15s used for S3 would clip the tail.
+  backend {
+    address               = local.cache_serve_origin
+    auto_loadbalance      = false
+    between_bytes_timeout = 10000
+    connect_timeout       = 5000
+    error_threshold       = 0
+    first_byte_timeout    = 60000
+    max_conn              = 200
+    name                  = "serve"
+    override_host         = local.cache_serve_origin
+    port                  = 443
+    shield                = "iad-va-us"
+    ssl_cert_hostname     = local.cache_serve_origin
+    ssl_check_cert        = true
+    use_ssl               = true
+    weight                = 100
+  }
+
   request_setting {
     name      = "Redirect HTTP to HTTPS"
     force_ssl = true
@@ -278,12 +308,18 @@ resource "fastly_service_vcl" "cache" {
     name     = "Authenticate S3 requests"
     type     = "miss"
     priority = 100
-    content = templatefile("${path.module}/cache/s3-authn.vcl", {
-      aws_region     = aws_s3_bucket.cache.region
-      backend_domain = aws_s3_bucket.cache.bucket_domain_name
-      access_key     = local.cache-iam.key
-      secret_key     = local.cache-iam.secret
-    })
+    content = join("\n", [
+      # Only requests bound for S3 are signed. `/serve/` has its own backend,
+      # which is public and unauthenticated.
+      "if (req.url.path !~ \"^/serve/\") {",
+      templatefile("${path.module}/cache/s3-authn.vcl", {
+        aws_region     = aws_s3_bucket.cache.region
+        backend_domain = aws_s3_bucket.cache.bucket_domain_name
+        access_key     = local.cache-iam.key
+        secret_key     = local.cache-iam.secret
+      }),
+      "}",
+    ])
   }
 
   snippet {
@@ -304,6 +340,19 @@ resource "fastly_service_vcl" "cache" {
     EOT
     name     = "Enable segment caching for NAR files"
     priority = 60
+    type     = "recv"
+  }
+
+  # Send per-file reads to their own origin. This is the only routing change:
+  # `/nar/`, `<hash>.narinfo` and `<hash>.ls` are untouched.
+  snippet {
+    content  = <<-EOT
+      if (req.url.path ~ "^/serve/") {
+        set req.backend = F_serve;
+      }
+    EOT
+    name     = "Route per-file reads to the serve backend"
+    priority = 70
     type     = "recv"
   }
 
